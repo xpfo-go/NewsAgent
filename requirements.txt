@@ -1,0 +1,6 @@
+beautifulsoup4==4.13.4
+edge_tts==7.0.2
+openai==1.90.0
+pocketflow==0.0.2
+python-dotenv==1.1.0
+Requests==2.32.4
