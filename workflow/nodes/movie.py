@@ -58,7 +58,7 @@ class Movie(Node):
 
         filter_complex = (
             f"[0:v]drawtext="
-            f"fontfile={shlex.quote(font_path)}:"
+            f"fontfile=‘{shlex.quote(font_path)}’:"
             f"text='{escaped_text}':"
             f"fontcolor=white:fontsize={font_size}:"
             f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=10,"
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     shared_dict = {
         "save_dir": '../../data/20250621',
         "summary": json.loads(open('../../data/20250621/step_c.summary_news.json').read()),
-        "audio_path": '../../data/20250621/step_d.audio.mp3',
+        "audio_path": r'../../data/20250621/step_d.audio.mp3',
         "srt_path": '../../data/20250621/step_d.srt',
         "font_path": '/System/Library/Fonts/STHeiti Light.ttc'
     }

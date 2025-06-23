@@ -52,7 +52,8 @@ class FetchBBCNews(Node):
                         time_format = "%Y-%m-%dT%H:%M:%S.%fZ"
                         published_utc_time = datetime.datetime.strptime(item["lastPublished"], time_format)
                         published_shanghai_time = published_utc_time + datetime.timedelta(hours=8)
-                        if published_shanghai_time > one_day_ago:
+
+                        if published_shanghai_time < one_day_ago:
                             continue
                         item["time"] = published_shanghai_time.strftime("%Y-%m-%d %H:%M:%S")
                         news_items.append(item)
@@ -60,8 +61,6 @@ class FetchBBCNews(Node):
                 break
             except json.JSONDecodeError as e:
                 raise AssertionError(f"JSON decode error: {e}")
-
-
 
         print("Fetch BBC News List Successfully. Now Start Fetch BBC News Detail.....")
         for item in news_items:
@@ -94,3 +93,13 @@ class FetchBBCNews(Node):
 
     def post(self, shared, prep_res, exec_res):
         shared["news"] = exec_res["news"]
+
+
+if __name__ == '__main__':
+    from pocketflow import Flow
+    shared_dict = {
+        "save_dir": '../../data/20250621',
+    }
+    fetch = FetchBBCNews()
+    flow = Flow(start=fetch)
+    flow.run(shared_dict)
