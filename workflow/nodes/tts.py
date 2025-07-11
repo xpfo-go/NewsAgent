@@ -22,7 +22,7 @@ class TTS(Node):
         # 准备文本
         summary_data = prep_res["summary"]
         tts_text = summary_data.get("summary", "")
-        news_list = [f'{item.get("title", "")}, {item.get("content", "")}' for item in summary_data.get("news", [])]
+        news_list = [f'{idx}.{item.get("title", "")}, {item.get("content", "")}' for idx, item in enumerate(summary_data.get("news", []))]
         tts_text += "。".join(news_list)
         tts_text += summary_data.get("end", "")
 
