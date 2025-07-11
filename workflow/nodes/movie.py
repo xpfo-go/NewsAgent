@@ -31,7 +31,7 @@ class Movie(Node):
 
         full_text = ''
         for i, section in enumerate(structure):
-            full_text += f"{i+1}. {section}\n"
+            full_text += f"{i + 1}. {section}\n"
 
         # b. 生成视频的一些配置参数
         video_size = (1920, 1080)
@@ -195,6 +195,7 @@ class Movie(Node):
 if __name__ == '__main__':
     # ------ just for test -------
     from pocketflow import Flow
+
     shared_dict = {
         "save_dir": '../../data/20250621',
         "summary": json.loads(open('../../data/20250621/step_c.summary_news.json').read()),
