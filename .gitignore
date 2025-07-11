@@ -107,3 +107,5 @@ uv.lock
 
 docs/*.pdf
 docs/design-cn.md
+
+cookie.json
