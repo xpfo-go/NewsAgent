@@ -32,3 +32,14 @@ class CleanedBBCNews(Node):
 
     def post(self, shared, prep_res, exec_res):
         shared["cleaned_news"] = exec_res["cleaned_news"]
+
+
+if __name__ == '__main__':
+    from pocketflow import Flow
+    shared_dict = {
+        "save_dir": '../../data/20250621',
+        "news": json.loads(open('../../data/20250621/step_a.fetch_news.json').read())
+    }
+    cleaned = CleanedBBCNews()
+    flow = Flow(start=cleaned)
+    flow.run(shared_dict)
