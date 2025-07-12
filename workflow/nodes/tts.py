@@ -22,7 +22,10 @@ class TTS(Node):
         # 准备文本
         summary_data = prep_res["summary"]
         tts_text = summary_data.get("summary", "")
-        news_list = [f'{idx}.{item.get("title", "")}, {item.get("content", "")}' for idx, item in enumerate(summary_data.get("news", []))]
+        news_list = [f'{idx+1}. {item.get("title", "")}, {item.get("content", "")}' for idx, item in enumerate(summary_data.get("news", []))]
+        # 如果只有一条新闻的话，那就不说总结了
+        if len(news_list) == 1:
+            tts_text = ''
         tts_text += "。".join(news_list)
         tts_text += summary_data.get("end", "")
 

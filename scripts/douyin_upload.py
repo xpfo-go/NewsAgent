@@ -91,8 +91,15 @@ class Douyin:
             await page.locator(".ace-line > div").click()
 
             tag_index = 0
-            # 处理末尾标题
-            video_desc_tag = ['每日热点新闻', '#热点']
+            # 只能添加5个热点话题
+            video_desc_tag = [
+                f'{time.strftime("%Y年%m月%d日", time.localtime())}最新消息！',
+                '#国际',
+                '#国际新闻',
+                '#国际局势',
+                '#咨询',
+                '#国际热点新闻',
+            ]
             for tag in video_desc_tag:
                 await page.type(css_selector, tag)
                 tag_index += 1
