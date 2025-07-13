@@ -3,6 +3,7 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 from datetime import timedelta
 
 from pocketflow import Node
@@ -33,6 +34,10 @@ class Movie(Node):
         for i, section in enumerate(structure):
             full_text += f"{i + 1}. {section}\n"
 
+        with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.txt', encoding='utf-8') as tf:
+            tf.write(full_text)
+            textfile_path = tf.name
+
         # b. 生成视频的一些配置参数
         video_size = (1920, 1080)
         font_size = 60
@@ -50,21 +55,21 @@ class Movie(Node):
         result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         duration = result.stdout.strip() or "10"  # 兜底 10s
 
-        escaped_text = full_text
-
         # c. 构造 filter_complex
         font_path = prep_res["font_path"]
         font_name = os.path.splitext(os.path.basename(font_path))[0]
 
         filter_complex = (
             f"[0:v]drawtext="
-            f"fontfile=‘{shlex.quote(font_path)}’:"
-            f"text='{escaped_text}':"
+            f"expansion=none:"
+            f"fontfile='{shlex.quote(font_path)}':"
+            f"textfile='{shlex.quote(textfile_path)}':"
             f"fontcolor=white:fontsize={font_size}:"
-            f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=10,"
-            f"subtitles={shlex.quote(srt_path)}:"
-            f"force_style='FontName={font_name},FontSize=48,PrimaryColour=&HFFFFFF&,Alignment=2',"
-            f"format=yuv420p[v]"
+            f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=10"
+            # 逗号分隔下一个滤镜
+            f",subtitles={shlex.quote(srt_path)}:"
+            f"force_style='FontName={font_name},FontSize=48,PrimaryColour=&HFFFFFF&,Alignment=2'"
+            f",format=yuv420p[v]"
         )
 
         # d. 构建 ffmpeg 命令
