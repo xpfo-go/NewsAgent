@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 import time
 
 import requests
@@ -172,6 +174,11 @@ def run():
     cookie_path = 'runtime/cookie/cookie.json'
 
     today = time.strftime("%Y%m%d", time.localtime())
+
+    target_dir = f'../data/{today}/'
+    if not os.path.exists(target_dir) and not os.path.isdir(target_dir):
+        print('今日还未生成视频，请先运行工作流。')
+        sys.exit(0)
     video_path = f'../data/{today}/step_e.movie.mp4'
     print(video_path)
 
