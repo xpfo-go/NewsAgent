@@ -62,7 +62,7 @@ class FetchBBCNews(Node):
             except json.JSONDecodeError as e:
                 raise AssertionError(f"JSON decode error: {e}")
 
-        print("Fetch BBC News List Successfully. Now Start Fetch BBC News Detail.....")
+        print(f"Fetch {len(news_items)} BBC News List Successfully. Now Start Fetch BBC News Detail.....")
         for item in news_items:
             resp = requests.get(
                 url=item["link"],
@@ -92,13 +92,16 @@ class FetchBBCNews(Node):
         }
 
     def post(self, shared, prep_res, exec_res):
+        if len(exec_res["news"]) == 0:
+            shared["error"] = "BBC News List is Empty."
+            return "failed"
         shared["news"] = exec_res["news"]
 
 
 if __name__ == '__main__':
     from pocketflow import Flow
     shared_dict = {
-        "save_dir": '../../data/20250621',
+        "save_dir": '../../data/20250720',
     }
     fetch = FetchBBCNews()
     flow = Flow(start=fetch)

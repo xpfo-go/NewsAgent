@@ -153,6 +153,7 @@ class SummaryBBCNews(Node):
 
     def post(self, shared, prep_res, exec_res):
         if not exec_res["ok"]:
+            shared["error"] = "summary news failed."
             return "failed"
         shared["summary"] = exec_res["summary"]
 
