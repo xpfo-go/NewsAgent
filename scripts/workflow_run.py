@@ -12,7 +12,7 @@ dotenv.load_dotenv()
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Hacker News report.")
-    parser.add_argument("-dir", "--save_dir", default="data",
+    parser.add_argument("-dir", "--save_dir", default="../data",
                         help="Save workflow data directory for output (default: ./data).")
     parser.add_argument("-font", "--font_path", default="/System/Library/Fonts/STHeiti Light.ttc",
                         help="News video font.")
