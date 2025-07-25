@@ -109,8 +109,48 @@ class Douyin:
                 print("正在添加第%s个话题" % tag_index)
             print("视频标题输入完毕，等待发布")
 
-            # 循环获取点击按钮消息
-            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector(
+                    ".recommendCoverContainer-S5XRoQ .recommendCover-vWWsHB:nth-child(1) img",
+                    state="visible",
+                    timeout=30000  # 最多等30秒
+                )
+                print("第一个推荐封面已加载")
+            except TimeoutError:
+                print("封面加载超时，可能没有推荐封面")
+                return
+
+            # 选择推荐封面中的第一个封面
+            await page.click(".recommendCoverContainer-S5XRoQ .recommendCover-vWWsHB:nth-child(1)")
+            print("已点击第一个推荐封面")
+
+            # 等待弹出确认框
+            await asyncio.sleep(1)
+
+            try:
+                await page.wait_for_selector("button:has-text('确定')", timeout=30000)
+                await page.click("button:has-text('确定')")
+                print("已点击弹窗中的“确定”按钮")
+            except TimeoutError:
+                print("未检测到弹窗或“确定”按钮，可能未成功弹出")
+                return
+
+            print("已确认封面选择")
+
+            # 等待封面设置成功
+            while True:
+                await asyncio.sleep(2)
+                msg = await page.locator('//*[@class="semi-toast-content-text"]').all_text_contents()
+                is_set = 0
+                for msg_txt in msg:
+                    print("来自网页的实时消息：" + msg_txt)
+                    if msg_txt.find("封面设置成功") != -1:
+                        is_set = 1
+                    elif msg_txt.find("封面设置中") != -1:
+                        print('封面设置中，请稍后...')
+                if is_set == 1:
+                    break
+
             # 点击发布
             await page.get_by_role("button", name="发布", exact=True).click()
             try:
