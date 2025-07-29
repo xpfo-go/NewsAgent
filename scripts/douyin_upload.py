@@ -137,19 +137,20 @@ class Douyin:
 
             print("已确认封面选择")
 
-            # 等待封面设置成功
-            while True:
-                await asyncio.sleep(2)
-                msg = await page.locator('//*[@class="semi-toast-content-text"]').all_text_contents()
-                is_set = 0
-                for msg_txt in msg:
-                    print("来自网页的实时消息：" + msg_txt)
-                    if msg_txt.find("封面设置成功") != -1:
-                        is_set = 1
-                    elif msg_txt.find("封面设置中") != -1:
-                        print('封面设置中，请稍后...')
-                if is_set == 1:
-                    break
+            # 等待弹窗出现并判断是否包含“封面设置成功”
+            try:
+                while True:
+                    await asyncio.sleep(0.5)
+                    toast = await page.wait_for_selector('.semi-toast-wrapper .semi-toast-content-text', timeout=10000)
+                    text = await toast.inner_text()
+                    if "封面设置成功" in text:
+                        print("封面设置成功")
+                        break
+                    else:
+                        print(f"弹窗提示：{text}")
+                        continue
+            except TimeoutError:
+                print("未检测到封面设置成功的弹窗")
 
             # 点击发布
             await page.get_by_role("button", name="发布", exact=True).click()
@@ -228,3 +229,4 @@ def run():
 
 if __name__ == '__main__':
     run()
+
