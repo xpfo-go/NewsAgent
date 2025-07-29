@@ -164,8 +164,8 @@ if __name__ == '__main__':
 
     dotenv.load_dotenv('../../.env')
     shared_dict = {
-        "save_dir": '../../data/20250621',
-        "cleaned_news": json.loads(open('../../data/20250621/step_b.cleaned_news.json').read())
+        "save_dir": '../../data/20250729',
+        "cleaned_news": json.loads(open('../../data/20250729/step_b.cleaned_news.json').read())
     }
     summary = SummaryBBCNews()
     flow = Flow(start=summary)
