@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
 
 from openai import OpenAI
 from pocketflow import Node
+from workflow.utils.logging import get_logger, log_event
+from workflow.utils.retry import retry_call
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,10 @@ def resolve_openai_config() -> OpenAIConfig:
 class SummaryBBCNews(Node):
     def __init__(self, client: Optional[OpenAI] = None, model: Optional[str] = None):
         super().__init__()
+        self.logger = get_logger("newsagent.summary")
+        self.retry_attempts = int(os.getenv("NEWSAGENT_SUMMARY_RETRY_ATTEMPTS", "3"))
+        self.retry_base_delay = float(os.getenv("NEWSAGENT_SUMMARY_RETRY_BASE_DELAY", "1"))
+        self.retry_backoff = float(os.getenv("NEWSAGENT_SUMMARY_RETRY_BACKOFF", "2"))
         if client is None or model is None:
             cfg = resolve_openai_config()
             self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
@@ -141,7 +148,7 @@ class SummaryBBCNews(Node):
 """
 
     def prep(self, shared):
-        print("=================Start summary News to Markdown===================")
+        log_event(self.logger, logging.INFO, "summary.start", cleaned_count=len(shared.get("cleaned_news", [])))
         return {
             "save_dir": shared["save_dir"],
             "save_file": "step_c.summary_news.json",
@@ -150,29 +157,23 @@ class SummaryBBCNews(Node):
 
     def exec(self, prep_res):
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                reasoning_effort="low",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self.prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": f"请总结以下新闻{json.dumps(prep_res['cleaned_news'], ensure_ascii=False)}"
-                    }
-                ]
+            json_data = retry_call(
+                lambda: self._build_summary(prep_res["cleaned_news"]),
+                attempts=self.retry_attempts,
+                base_delay=self.retry_base_delay,
+                backoff=self.retry_backoff,
+                logger=self.logger,
+                operation="summary.openai",
             )
-            json_str = response.choices[0].message.content
-            json_data = json.loads(json_str)
             with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w", encoding="utf-8") as f:
                 json.dump(json_data, f, indent=4, ensure_ascii=False)
+            log_event(self.logger, logging.INFO, "summary.finished", news_count=len(json_data.get("news", [])))
             return {
                 "summary": json_data,
                 "ok": True
             }
         except Exception as exc:
+            log_event(self.logger, logging.ERROR, "summary.failed", error=str(exc))
             return {
                 "ok": False,
                 "summary": str(exc)
@@ -183,6 +184,24 @@ class SummaryBBCNews(Node):
             shared["error"] = f"summary news failed: {exec_res['summary']}"
             return "failed"
         shared["summary"] = exec_res["summary"]
+
+    def _build_summary(self, cleaned_news: list[dict]) -> dict:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            reasoning_effort="low",
+            messages=[
+                {
+                    "role": "system",
+                    "content": self.prompt
+                },
+                {
+                    "role": "user",
+                    "content": f"请总结以下新闻{json.dumps(cleaned_news, ensure_ascii=False)}"
+                }
+            ]
+        )
+        json_str = response.choices[0].message.content
+        return json.loads(json_str)
 
 
 if __name__ == '__main__':

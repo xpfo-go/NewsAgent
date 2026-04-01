@@ -1,16 +1,25 @@
 import datetime
 import json
+import logging
 import os
-import time
 
 import requests
 from bs4 import BeautifulSoup
 from pocketflow import Node
+from workflow.utils.logging import get_logger, log_event
+from workflow.utils.retry import retry_call
 
 
 class FetchBBCNews(Node):
+    def __init__(self):
+        super().__init__()
+        self.logger = get_logger("newsagent.fetch")
+        self.retry_attempts = int(os.getenv("NEWSAGENT_FETCH_RETRY_ATTEMPTS", "3"))
+        self.retry_base_delay = float(os.getenv("NEWSAGENT_FETCH_RETRY_BASE_DELAY", "1"))
+        self.retry_backoff = float(os.getenv("NEWSAGENT_FETCH_RETRY_BACKOFF", "2"))
+
     def prep(self, shared):
-        print("=================Start Fetch BBC News===================")
+        log_event(self.logger, logging.INFO, "fetch.start")
         return {
             "bbc_news_url": "https://www.bbc.com/zhongwen/topics/c83plve5vmjt/simp",
             "save_dir": shared["save_dir"],
@@ -23,12 +32,7 @@ class FetchBBCNews(Node):
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
         }
-        resp = requests.get(
-            url=prep_res["bbc_news_url"],
-            headers=headers,
-            timeout=10
-        )
-        resp.raise_for_status()
+        resp = self._request_with_retry(prep_res["bbc_news_url"], headers, "fetch.list")
         html = resp.text
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -60,20 +64,21 @@ class FetchBBCNews(Node):
 
                 break
             except json.JSONDecodeError as e:
-                print(f"Failed to decode SIMORGH_DATA json: {e}")
+                log_event(self.logger, logging.WARNING, "fetch.simorgh_decode_failed", error=str(e))
                 continue
 
         if not simorgh_found:
             raise RuntimeError("SIMORGH_DATA script not found in BBC page.")
 
-        print(f"Fetch {len(news_items)} BBC News List Successfully. Now Start Fetch BBC News Detail.....")
+        log_event(self.logger, logging.INFO, "fetch.list_done", news_count=len(news_items))
         for item in news_items:
-            resp = requests.get(
-                url=item["link"],
-                headers=headers,
-                timeout=10
-            )
-            if not resp.ok:
+            link = item.get("link")
+            if not link:
+                continue
+            try:
+                resp = self._request_with_retry(link, headers, "fetch.detail")
+            except Exception as exc:
+                log_event(self.logger, logging.WARNING, "fetch.detail_failed", url=link, error=str(exc))
                 continue
 
             html = resp.text
@@ -85,12 +90,19 @@ class FetchBBCNews(Node):
                 text = '\n'.join(text_list)
                 item["text"] = text
             except Exception as e:
-                print(f"Failed to parse BBC News Detail: {e}")
+                log_event(self.logger, logging.WARNING, "fetch.detail_parse_failed", url=link, error=str(e))
                 continue
 
         with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w", encoding="utf-8") as f:
             json.dump(news_items, f, indent=4, ensure_ascii=False)
 
+        log_event(
+            self.logger,
+            logging.INFO,
+            "fetch.finished",
+            fetched=len(news_items),
+            with_text=sum(1 for item in news_items if item.get("text")),
+        )
         return {
             "news": news_items,
         }
@@ -100,6 +112,21 @@ class FetchBBCNews(Node):
             shared["error"] = "BBC News List is Empty."
             return "failed"
         shared["news"] = exec_res["news"]
+
+    def _request_with_retry(self, url: str, headers: dict, operation: str) -> requests.Response:
+        def _call() -> requests.Response:
+            response = requests.get(url=url, headers=headers, timeout=10)
+            response.raise_for_status()
+            return response
+
+        return retry_call(
+            _call,
+            attempts=self.retry_attempts,
+            base_delay=self.retry_base_delay,
+            backoff=self.retry_backoff,
+            logger=self.logger,
+            operation=operation,
+        )
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import platform
 import re
@@ -8,6 +9,8 @@ from datetime import timedelta
 from typing import Optional
 
 from pocketflow import Node
+from workflow.utils.logging import get_logger, log_event
+from workflow.utils.retry import retry_call
 
 
 def select_video_codec(system_name: Optional[str] = None) -> str:
@@ -20,9 +23,13 @@ def select_video_codec(system_name: Optional[str] = None) -> str:
 class Movie(Node):
     def __init__(self):
         super().__init__()
+        self.logger = get_logger("newsagent.movie")
+        self.retry_attempts = int(os.getenv("NEWSAGENT_MOVIE_RETRY_ATTEMPTS", "2"))
+        self.retry_base_delay = float(os.getenv("NEWSAGENT_MOVIE_RETRY_BASE_DELAY", "1"))
+        self.retry_backoff = float(os.getenv("NEWSAGENT_MOVIE_RETRY_BACKOFF", "2"))
 
     def prep(self, shared):
-        print("=================Start gen Movie===================")
+        log_event(self.logger, logging.INFO, "movie.start", news_count=len(shared.get("summary", {}).get("news", [])))
         return {
             "save_dir": shared["save_dir"],
             "save_file": "step_e.movie.mp4",
@@ -98,12 +105,21 @@ class Movie(Node):
 
         # e. 执行
         try:
-            subprocess.run(ffmpeg_cmd, check=True)
+            retry_call(
+                lambda: subprocess.run(ffmpeg_cmd, check=True),
+                attempts=self.retry_attempts,
+                base_delay=self.retry_base_delay,
+                backoff=self.retry_backoff,
+                logger=self.logger,
+                operation="movie.ffmpeg",
+            )
+            log_event(self.logger, logging.INFO, "movie.finished", output=output_path, codec=codec)
         except subprocess.CalledProcessError as exc:
+            log_event(self.logger, logging.ERROR, "movie.failed", error=str(exc))
             raise RuntimeError(f"ffmpeg failed: {exc}") from exc
 
     def post(self, shared, prep_res, exec_res):
-        print("success.")
+        log_event(self.logger, logging.INFO, "movie.post.success")
 
     @staticmethod
     def _escape_ffmpeg_path(path: str) -> str:
