@@ -1,19 +1,48 @@
 import json
 import os
+from dataclasses import dataclass
+from typing import Optional
 
-import dotenv
 from openai import OpenAI
 from pocketflow import Node
 
 
+@dataclass(frozen=True)
+class OpenAIConfig:
+    api_key: str
+    base_url: str
+    model: str
+
+
+def resolve_openai_config() -> OpenAIConfig:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    base_url = os.getenv("OPENAI_BASE_URL", "").strip()
+    model = os.getenv("OPENAI_MODEL", "").strip()
+
+    missing = []
+    if not api_key:
+        missing.append("OPENAI_API_KEY")
+    if not base_url:
+        missing.append("OPENAI_BASE_URL")
+    if not model:
+        missing.append("OPENAI_MODEL")
+
+    if missing:
+        raise ValueError(f"missing OpenAI env config: {', '.join(missing)}")
+
+    return OpenAIConfig(api_key=api_key, base_url=base_url, model=model)
+
+
 class SummaryBBCNews(Node):
-    def __init__(self):
+    def __init__(self, client: Optional[OpenAI] = None, model: Optional[str] = None):
         super().__init__()
-        self.client = OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL")
-        )
-        self.model = os.getenv("OPENAI_MODEL")
+        if client is None or model is None:
+            cfg = resolve_openai_config()
+            self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
+            self.model = cfg.model
+        else:
+            self.client = client
+            self.model = model
         self.prompt = """
 # Role: 新闻编辑
 
@@ -120,40 +149,38 @@ class SummaryBBCNews(Node):
         }
 
     def exec(self, prep_res):
-        response = self.client.chat.completions.create(
-            model=self.model,
-            reasoning_effort="low",
-            messages=[
-                {
-                    "role": "system",
-                    "content": self.prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"请总结以下新闻{json.dumps(prep_res['cleaned_news'], ensure_ascii=False)}"
-                }
-            ]
-        )
-
-        json_str = response.choices[0].message.content
         try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                reasoning_effort="low",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self.prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": f"请总结以下新闻{json.dumps(prep_res['cleaned_news'], ensure_ascii=False)}"
+                    }
+                ]
+            )
+            json_str = response.choices[0].message.content
             json_data = json.loads(json_str)
-            with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w") as f:
+            with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w", encoding="utf-8") as f:
                 json.dump(json_data, f, indent=4, ensure_ascii=False)
             return {
                 "summary": json_data,
                 "ok": True
             }
-        except json.JSONDecodeError:
-            print(json_str)
+        except Exception as exc:
             return {
                 "ok": False,
-                "summary": "json decode error"
+                "summary": str(exc)
             }
 
     def post(self, shared, prep_res, exec_res):
         if not exec_res["ok"]:
-            shared["error"] = "summary news failed."
+            shared["error"] = f"summary news failed: {exec_res['summary']}"
             return "failed"
         shared["summary"] = exec_res["summary"]
 
@@ -162,7 +189,6 @@ if __name__ == '__main__':
     # ------ just for test -------
     from pocketflow import Flow
 
-    dotenv.load_dotenv('../../.env')
     shared_dict = {
         "save_dir": '../../data/20250729',
         "cleaned_news": json.loads(open('../../data/20250729/step_b.cleaned_news.json').read())

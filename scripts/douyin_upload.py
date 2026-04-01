@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import time
+from pathlib import Path
 
 import requests
 from playwright.async_api import Playwright, async_playwright
@@ -60,7 +61,8 @@ class Douyin:
         browser = await self.playwright_init(p)
         context = await browser.new_context(storage_state=self.cookie_file, user_agent=self.ua["web"])
         page = await context.new_page()
-        await page.add_init_script(path="runtime/stealth.min.js")
+        stealth_path = Path(__file__).resolve().parent / "runtime" / "stealth.min.js"
+        await page.add_init_script(path=str(stealth_path))
         await page.goto("https://creator.douyin.com/creator-micro/content/upload")
         print("正在判断账号是否登录")
         if "/creator-micro/" not in page.url:
@@ -212,21 +214,22 @@ class Douyin:
 
 
 def run():
-    cookie_path = 'runtime/cookie/cookie.json'
+    scripts_dir = Path(__file__).resolve().parent
+    root_dir = scripts_dir.parent
+    cookie_path = scripts_dir / "runtime" / "cookie" / "cookie.json"
 
     today = time.strftime("%Y%m%d", time.localtime())
 
-    target_dir = f'../data/{today}/'
-    if not os.path.exists(target_dir) and not os.path.isdir(target_dir):
+    target_dir = root_dir / "data" / today
+    if not target_dir.exists() or not target_dir.is_dir():
         print('今日还未生成视频，请先运行工作流。')
         sys.exit(0)
-    video_path = f'../data/{today}/step_e.movie.mp4'
+    video_path = root_dir / "data" / today / "step_e.movie.mp4"
     print(video_path)
 
-    app = Douyin(60, cookie_path, video_path)
+    app = Douyin(60, str(cookie_path), str(video_path))
     asyncio.run(app.main())
 
 
 if __name__ == '__main__':
     run()
-

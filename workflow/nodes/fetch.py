@@ -1,11 +1,9 @@
 import datetime
-import os
-import re
-
-import requests
 import json
+import os
 import time
 
+import requests
 from bs4 import BeautifulSoup
 from pocketflow import Node
 
@@ -35,11 +33,13 @@ class FetchBBCNews(Node):
         soup = BeautifulSoup(html, 'html.parser')
 
         scripts = soup.find_all('script')
+        simorgh_found = False
         for script in scripts:
             if not (script.string and 'window.SIMORGH_DATA' in script.string):
                 continue
 
-            json_str = script.string[len('window.SIMORGH_DATA='):]
+            simorgh_found = True
+            json_str = script.string[len('window.SIMORGH_DATA='):].rstrip(";")
             try:
                 raw_data = json.loads(json_str)
                 curations_list = raw_data.get('pageData', {}).get('curations', [])
@@ -60,7 +60,11 @@ class FetchBBCNews(Node):
 
                 break
             except json.JSONDecodeError as e:
-                raise AssertionError(f"JSON decode error: {e}")
+                print(f"Failed to decode SIMORGH_DATA json: {e}")
+                continue
+
+        if not simorgh_found:
+            raise RuntimeError("SIMORGH_DATA script not found in BBC page.")
 
         print(f"Fetch {len(news_items)} BBC News List Successfully. Now Start Fetch BBC News Detail.....")
         for item in news_items:
@@ -84,7 +88,7 @@ class FetchBBCNews(Node):
                 print(f"Failed to parse BBC News Detail: {e}")
                 continue
 
-        with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w") as f:
+        with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w", encoding="utf-8") as f:
             json.dump(news_items, f, indent=4, ensure_ascii=False)
 
         return {

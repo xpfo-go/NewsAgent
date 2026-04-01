@@ -8,7 +8,7 @@ class RaiseException(Node):
         }
 
     def exec(self, prep_res):
-        print(prep_res["error"])
+        raise RuntimeError(prep_res["error"])
 
     def post(self, shared, prep_res, exec_res):
         pass

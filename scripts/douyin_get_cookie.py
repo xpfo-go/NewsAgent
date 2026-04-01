@@ -9,10 +9,12 @@
 
 import asyncio
 import os
+from pathlib import Path
+
 from playwright.async_api import Playwright, async_playwright
 
 
-class creator_douyin():
+class creator_douyin:
     def __init__(self, timeout: int):
         """
         初始化
@@ -20,11 +22,12 @@ class creator_douyin():
         :param timeout: 你要等待多久，单位秒
         """
         self.timeout = timeout * 1000
-        self.path = 'runtime'
+        self.path = Path(__file__).resolve().parent / "runtime"
         self.desc = "cookie.json"
 
-        if not os.path.exists(os.path.join(self.path, "cookie")):
-            os.makedirs(os.path.join(self.path, "cookie"))
+        cookie_dir = self.path / "cookie"
+        if not cookie_dir.exists():
+            cookie_dir.mkdir(parents=True, exist_ok=True)
 
     async def __cookie(self, playwright: Playwright) -> None:
         browser = await playwright.chromium.launch(channel="chrome", headless=False)
@@ -50,7 +53,7 @@ class creator_douyin():
             try:
                 cookie_txt.index("sessionid")
                 print("登录成功")
-                await context.storage_state(path=os.path.join(self.path, "cookie", self.desc))
+                await context.storage_state(path=str(self.path / "cookie" / self.desc))
             except ValueError:
                 print("登录失败，本次操作不保存cookie")
         except Exception as e:

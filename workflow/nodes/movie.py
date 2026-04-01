@@ -1,12 +1,20 @@
 import json
 import os
+import platform
 import re
-import shlex
 import subprocess
 import tempfile
 from datetime import timedelta
+from typing import Optional
 
 from pocketflow import Node
+
+
+def select_video_codec(system_name: Optional[str] = None) -> str:
+    current = (system_name or platform.system()).lower()
+    if current == "darwin":
+        return "h264_videotoolbox"
+    return "libx264"
 
 
 class Movie(Node):
@@ -52,25 +60,29 @@ class Movie(Node):
             "-of", "default=noprint_wrappers=1:nokey=1",
             audio_path
         ]
-        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
         duration = result.stdout.strip() or "10"  # 兜底 10s
 
         # c. 构造 filter_complex
         font_path = prep_res["font_path"]
         font_name = os.path.splitext(os.path.basename(font_path))[0]
+        escaped_font_path = self._escape_ffmpeg_path(font_path)
+        escaped_textfile_path = self._escape_ffmpeg_path(textfile_path)
+        escaped_srt_path = self._escape_ffmpeg_path(srt_path)
 
         filter_complex = (
             f"[0:v]drawtext="
             f"expansion=none:"
-            f"fontfile='{shlex.quote(font_path)}':"
-            f"textfile='{shlex.quote(textfile_path)}':"
+            f"fontfile='{escaped_font_path}':"
+            f"textfile='{escaped_textfile_path}':"
             f"fontcolor=white:fontsize={font_size}:"
             f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=10"
             # 逗号分隔下一个滤镜
-            f",subtitles={shlex.quote(srt_path)}:"
+            f",subtitles='{escaped_srt_path}':"
             f"force_style='FontName={font_name},FontSize=48,PrimaryColour=&HFFFFFF&,Alignment=2'"
             f",format=yuv420p[v]"
         )
+        codec = select_video_codec()
 
         # d. 构建 ffmpeg 命令
         ffmpeg_cmd = [
@@ -79,16 +91,29 @@ class Movie(Node):
             "-i", audio_path,
             "-filter_complex", filter_complex,
             "-map", "[v]", "-map", "1:a",
-            "-c:v", "h264_videotoolbox", "-preset", "fast",
+            "-c:v", codec, "-preset", "fast",
             "-c:a", "aac", "-b:a", "192k", "-shortest",
             output_path
         ]
 
         # e. 执行
-        subprocess.run(ffmpeg_cmd, check=True)
+        try:
+            subprocess.run(ffmpeg_cmd, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"ffmpeg failed: {exc}") from exc
 
     def post(self, shared, prep_res, exec_res):
         print("success.")
+
+    @staticmethod
+    def _escape_ffmpeg_path(path: str) -> str:
+        # ffmpeg filter path escaping for drawtext/subtitles params
+        return (
+            path.replace("\\", "\\\\")
+            .replace(":", "\\:")
+            .replace("'", "\\'")
+            .replace(",", "\\,")
+        )
 
     def _format_srt(self, srt_path):
         # 配置一下最小合并间隔，喘气停顿分割

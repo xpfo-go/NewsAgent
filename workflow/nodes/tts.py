@@ -39,7 +39,7 @@ class TTS(Node):
                 elif chunk["type"] == "WordBoundary":
                     sub_maker.feed(chunk)
 
-        with open(os.path.join(prep_res["save_dir"], prep_res["srt_file"]), "w") as f:
+        with open(os.path.join(prep_res["save_dir"], prep_res["srt_file"]), "w", encoding="utf-8") as f:
             f.write(sub_maker.get_srt())
 
         return {

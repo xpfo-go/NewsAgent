@@ -23,7 +23,7 @@ class CleanedBBCNews(Node):
             }
             cleaned_news.append(cleaned_item)
 
-        with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w") as f:
+        with open(os.path.join(prep_res["save_dir"], prep_res["save_file"]), "w", encoding="utf-8") as f:
             json.dump(cleaned_news, f, indent=4, ensure_ascii=False)
 
         return {
